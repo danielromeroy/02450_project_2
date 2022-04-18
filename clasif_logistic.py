@@ -1,10 +1,12 @@
-import data_preparation
+from data_preparation import *
 import numpy as np
 import sklearn.linear_model as lm
 
 # Wrangle the data bit over here
 
 #####
+
+# TODO: Add regularization param
 
 logistic_model = lm.LogisticRegression(max_iter=200)  # Increase max_iter, as it wouldn't converge otherwise
 logistic_model.fit(X, y)  # Multiclass, not binary
