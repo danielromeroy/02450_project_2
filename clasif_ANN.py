@@ -45,8 +45,7 @@ for (k, (train_index, test_index)) in enumerate(cross_validation.split(X, y)):
 
         loss_fn = torch.nn.CrossEntropyLoss()
 
-        net, _, _ = train_neural_net(model,
-                                     loss_fn,
+        net, _, _ = train_neural_net(model, loss_fn,
                                      X=torch.tensor(X_train, dtype=torch.float).to(device),
                                      y=torch.tensor(y_train, dtype=torch.long).to(device),
                                      n_replicates=1,
@@ -65,9 +64,13 @@ for (k, (train_index, test_index)) in enumerate(cross_validation.split(X, y)):
         results.append(result_array)
 
 np.set_printoptions(suppress=True, linewidth=np.inf)
-results.insert(0, np.array(["k-fold", "hidden units", "n errors", "test set size", "error rate", "accuracy"]))
+
 results_array = np.vstack(tuple(results))
 print(results_array)
 
-out_file = f"ANN_performance_{dt.now().strftime('%d_%m_%Y_%H_%M')}.csv"
-np.savetxt(f"./results/{out_file}", results_array, delimiter=",")
+out_file = f"clasif_ANN_performance_{dt.now().strftime('%d_%m_%Y_%H_%M_%S')}.csv"
+file_header = ",".join(["k-fold", "hidden units", "n errors", "test set size", "error rate", "accuracy"])
+np.savetxt(f"./results/{out_file}", results_array,
+           delimiter=",",
+           header=file_header,
+           fmt="%f")
