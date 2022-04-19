@@ -19,28 +19,27 @@ if TEST_SUBSET is not None:
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Using device {device}")
 
-indices = np.arange(N)
-np.random.shuffle(indices)
-
 cross_validation = ms.KFold(K_FOLDS, shuffle=True)
 
 n_hidden_units = range(1, 16) # Number of hidden units to test
 results = []
 for (k, (train_index, test_index)) in enumerate(cross_validation.split(X, y)):
     print(f"Starting fold {k + 1} of {K_FOLDS}. {round(k/K_FOLDS, 1)}% done.")
+
+    X_train = X[train_index, :]
+    X_test = X[test_index, :]
+
+    y_train = y[train_index]
+    y_test = y[test_index]
+
     for hu in n_hidden_units:
         print(f"Training ANN with {hu} hiden units in fold {k + 1}.")
-        X_train = X[train_index,:]
-        X_test = X[test_index,:]
 
-        y_train = y[train_index]
-        y_test = y[test_index]
-
-        model = lambda: torch.nn.Sequential(torch.nn.Linear(M, hu).to(device), #M features to H hiden units
+        model = lambda: torch.nn.Sequential(torch.nn.Linear(M, hu).to(device), # M features to hu hiden units
                                             torch.nn.ReLU(), # transfer function
-                                            torch.nn.Linear(hu, hu).to(device), #M features to H hiden units
+                                            torch.nn.Linear(hu, hu).to(device), # hu hiden units to hu hiden units
                                             torch.nn.ReLU(), # transfer function
-                                            torch.nn.Linear(hu, C).to(device), # C logits
+                                            torch.nn.Linear(hu, C).to(device), # hu hiden units to C logits
                                             torch.nn.Softmax(dim=1)) # final tranfer function
 
         loss_fn = torch.nn.CrossEntropyLoss()
