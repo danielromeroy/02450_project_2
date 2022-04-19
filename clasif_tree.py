@@ -55,5 +55,3 @@ ylabel('Error (misclassification rate, CV K={0})'.format(K))
 legend(['Error_train','Error_test'])
     
 show()
-
-print('Ran Exercise 6.1.2')
