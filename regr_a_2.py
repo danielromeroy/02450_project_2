@@ -3,32 +3,40 @@
 
 # Loading libraries
 from matplotlib.pylab import (figure, semilogx, loglog, xlabel, ylabel, legend, 
-                           title, subplot, show, grid)
+                           title, subplot, show, grid, suptitle, savefig)
+import numpy as np
+from scipy.io import loadmat
+import sklearn.linear_model as lm
 from sklearn import model_selection
 from toolbox_02450 import rlr_validate
 from codon_usage_load import *
-import sklearn.linear_model as lm
+from scipy.stats import mode
 
-# I don't think it makes sense to add an offset
-# The benefits of offsetting is that it allows features with small values
-# to still provide a good fit for the data.
-# Since all of our features are of the same type (codon frequencies),
-# this should not be necessary.
-# More info: https://web.mit.edu/zoya/www/linearRegression.pdf
-'''
+# Split dataset into features and target vector
+target = "AUG"
+attributeNames = attributeNames.tolist()
+codon_idx = attributeNames.index(target)
+y = X[:,codon_idx]
+X_cols = list(range(0,codon_idx)) + list(range(codon_idx+1,len(attributeNames)))
+X = X[:,X_cols]
+M = M-1
+
 # Add offset attribute
 X = np.concatenate((np.ones((X.shape[0],1)),X),1)
 attributeNames = [u'Offset']+attributeNames
 M = M+1
-'''
 
+## Crossvalidation
+# Create crossvalidation partition for evaluation
+K = 1 # just make one model. No double cross-validation in this script.
+#CV = model_selection.KFold(K, shuffle=True)
 
 # Values of lambda
-lambdas = np.power(10., range(0,11))
+lambdas = np.power(10.,range(-4,9))
+#lambdas = np.power(10., range(6,18))
 
-# Initialise variables
-K = 1 # just train one model
-k = 0
+# Initialize variables
+#T = len(lambdas)
 Error_train = np.empty((K,1))
 Error_test = np.empty((K,1))
 Error_train_rlr = np.empty((K,1))
@@ -36,33 +44,31 @@ Error_test_rlr = np.empty((K,1))
 Error_train_nofeatures = np.empty((K,1))
 Error_test_nofeatures = np.empty((K,1))
 w_rlr = np.empty((M,K))
-mu = np.empty((K, M))
-sigma = np.empty((K, M))
+mu = np.empty((K, M-1))
+sigma = np.empty((K, M-1))
 w_noreg = np.empty((M,K))
 
+k=0
 # Partition data into training and test sets
-t = 0.1 # Ratio of test set size to full data set size
-X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size = t, random_state = 42)
-internal_cross_validation = 10
-
-# Compute optimal lambda
+X_train, X_test, y_train, y_test = model_selection.train_test_split(
+    X, y, test_size=0.1)
+   
+# Compute optimal lambda   
+internal_cross_validation = 10 
 opt_val_err, opt_lambda, mean_w_vs_lambda, train_err_vs_lambda, test_err_vs_lambda = rlr_validate(X_train, y_train, lambdas, internal_cross_validation)
-
+    
 ## Feature transformation
 # Standardize data based on training set, and save the mean and standard
 # deviations since they're part of the model
 # Calculate the mean and standard deviation for each column/codon
 # Subtract the means from each value in the appropriate column
 # and divide by the standard deviation to get std.dev = 1 and mean = 0
-mu[k, :] = np.mean(X_train, 0)
-sigma[k, :] = np.std(X_train, 0)
-X_train = (X_train - mu[k, :] ) / sigma[k, :] 
-X_test = (X_test - mu[k, :] ) / sigma[k, :] 
+mu[k, :] = np.mean(X_train[:, 1:], 0)
+sigma[k, :] = np.std(X_train[:, 1:], 0)
+X_train[:, 1:] = (X_train[:, 1:] - mu[k, :] ) / sigma[k, :] 
+X_test[:, 1:] = (X_test[:, 1:] - mu[k, :] ) / sigma[k, :] 
 
-
-### The rest of the document is copy-pasted from ex8_1_1.py
-# will look into it later
-# don't know why we're transposing here... Will find out later.
+# Transpose X_train and (matrix) multiply with y_train or X_train
 Xty = X_train.T @ y_train
 XtX = X_train.T @ X_train
 
@@ -74,7 +80,6 @@ Error_test_nofeatures[k] = np.square(y_test-y_test.mean()).sum(axis=0)/y_test.sh
 lambdaI = opt_lambda * np.eye(M)
 lambdaI[0,0] = 0 # Do no regularize the bias term
 w_rlr[:,k] = np.linalg.solve(XtX+lambdaI,Xty).squeeze()
-
 # Compute mean squared error with regularization with optimal lambda
 Error_train_rlr[k] = np.square(y_train-X_train @ w_rlr[:,k]).sum(axis=0)/y_train.shape[0]
 Error_test_rlr[k] = np.square(y_test-X_test @ w_rlr[:,k]).sum(axis=0)/y_test.shape[0]
@@ -84,12 +89,8 @@ w_noreg[:,k] = np.linalg.solve(XtX,Xty).squeeze()
 # Compute mean squared error without regularization
 Error_train[k] = np.square(y_train-X_train @ w_noreg[:,k]).sum(axis=0)/y_train.shape[0]
 Error_test[k] = np.square(y_test-X_test @ w_noreg[:,k]).sum(axis=0)/y_test.shape[0]
-# OR ALTERNATIVELY: you can use sklearn.linear_model module for linear regression:
-#m = lm.LinearRegression().fit(X_train, y_train)
-#Error_train[k] = np.square(y_train-m.predict(X_train)).sum()/y_train.shape[0]
-#Error_test[k] = np.square(y_test-m.predict(X_test)).sum()/y_test.shape[0]
 
-# Display the results
+# Plot the results (averaged)
 figure(k, figsize=(12,8))
 subplot(1,2,1)
 semilogx(lambdas,mean_w_vs_lambda.T[:,1:],'.-') # Don't plot the bias term
@@ -105,17 +106,15 @@ title('Optimal lambda: 1e{0}'.format(np.log10(opt_lambda)))
 loglog(lambdas,train_err_vs_lambda.T,'b.-',lambdas,test_err_vs_lambda.T,'r.-')
 xlabel('Regularization factor')
 ylabel('Squared error (crossvalidation)')
-legend(['Train error','Validation error'])
+legend(['Training error','Generalization error'])
 grid()
+suptitle("Linear regression with regularization",
+             fontsize = 22,
+             fontweight = "bold")
+savefig("../results/reg_2.png")
 
-# To inspect the used indices, use these print statements
-#print('Cross validation fold {0}/{1}:'.format(k+1,K))
-#print('Train indices: {0}'.format(train_index))
-#print('Test indices: {0}\n'.format(test_index))
-
-show()
 # Display results
-print('Linear regression without feature selection:')
+print('Linear regression without regularization:')
 print('- Training error: {0}'.format(Error_train.mean()))
 print('- Test error:     {0}'.format(Error_test.mean()))
 print('- R^2 train:     {0}'.format((Error_train_nofeatures.sum()-Error_train.sum())/Error_train_nofeatures.sum()))
@@ -126,8 +125,6 @@ print('- Test error:     {0}'.format(Error_test_rlr.mean()))
 print('- R^2 train:     {0}'.format((Error_train_nofeatures.sum()-Error_train_rlr.sum())/Error_train_nofeatures.sum()))
 print('- R^2 test:     {0}\n'.format((Error_test_nofeatures.sum()-Error_test_rlr.sum())/Error_test_nofeatures.sum()))
 
-print('Weights in last fold:')
-for m in range(M):
-    print('{:>15} {:>15}'.format(attributeNames[m], np.round(w_rlr[m,-1],2)))
-
-print('Ran Exercise 8.1.1')
+#print('Weights in last fold:')
+#for m in range(M):
+#    print('{:>15} {:>15}'.format(attributeNames[m], np.round(w_rlr[m,-1],2)))

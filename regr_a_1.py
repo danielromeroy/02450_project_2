@@ -1,9 +1,17 @@
 # Linear regression, part a, section 1
 
 # Loading libraries
-from matplotlib.pylab import figure, subplot, plot, xlabel, ylabel, hist, show
+from matplotlib.pylab import figure, subplot, plot, xlabel, ylabel, hist, show, title, savefig
 import sklearn.linear_model as lm
 from codon_usage_load import *
+
+# Split dataset into features and target vector
+target = "AUG"
+attributeNames = attributeNames.tolist()
+codon_idx = attributeNames.index(target)
+y = X[:,codon_idx]
+X_cols = list(range(0,codon_idx)) + list(range(codon_idx+1,len(attributeNames)))
+X = X[:,X_cols]
 
 ## Feature transformation
 # calculate the average for each column/codon
@@ -24,13 +32,6 @@ for i in range(len(X)):
     for j in range(len(X_means)):
         X[i,j] = X[i,j] / X_stddev[j]
 
-# Split dataset into features and target vector
-target = "AUG"
-codon_idx = attributeNames.tolist().index(target)
-y = X[:,codon_idx]
-
-X_cols = list(range(0,codon_idx)) + list(range(codon_idx+1,len(attributeNames)))
-X = X[:,X_cols]
 
 # Fit ordinary least squares regression model
 model = lm.LinearRegression()
@@ -41,11 +42,17 @@ y_est = model.predict(X)
 residual = y_est-y
 
 # Display scatter plot
-figure()
+figure(figsize = (10, 9))
 subplot(2,1,1)
 plot(y, y_est, '.')
-xlabel('{0} codon frequency (true)'.format(target)); ylabel('{0} codon frequency (estimated)'.format(target));
+xlabel('Actual {0} codon frequency'.format(target));
+ylabel('Predicted {0} codon frequency'.format(target));
+title("Linear regression model performance",
+      pad = 10,
+      fontsize = 20,
+      fontweight = "bold")
 subplot(2,1,2)
 hist(residual,40)
-
-show()
+xlabel("Residuals")
+ylabel("Frequency")
+savefig("../results/reg_1")
