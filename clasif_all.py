@@ -6,14 +6,15 @@ from datetime import datetime as dt
 import numpy as np
 from data_preparation import *
 
-TEST_SUBSET = 600
-K_FOLDS = 5
+TEST = False
+TEST_SUBSET = None if not TEST else 200
+K_FOLDS = 10 if not TEST else 2
 
 if TEST_SUBSET is not None:
     shuffled_indices = np.arange(N)
     np.random.shuffle(shuffled_indices)
     test_indices = shuffled_indices[:TEST_SUBSET]
-    X = X[test_indices,]
+    X = X[test_indices, ]
     y = y[test_indices]
     N = TEST_SUBSET
 
@@ -29,13 +30,9 @@ def select_best_model(results: dict):
         val_set_size = np.sum(results_array[:, 1])
         gen_error = np.sum(results_array[:, 1] / val_set_size * results_array[:, 0])
         gen_errors[model] = gen_error
-    print(*gen_errors.items(), sep="\n")
     gen_errors_array = np.array(list(gen_errors.values()))
-    print(f"{gen_errors_array=}")
     best_model_index = np.argmin(gen_errors_array)
-    print(f"{best_model_index=}")
     best_model = list(gen_errors.keys())[best_model_index]
-    print(f"{best_model=}")
     return best_model
 
 
@@ -47,7 +44,7 @@ def write_outfile(array, name: str, header: str):
                fmt="%.9f")
 
 
-lambda_interval = np.logspace(-8, 4, 20)
+lambda_interval = np.logspace(-6, 3, 20)
 train_error_rate = np.zeros(len(lambda_interval))
 test_error_rate = np.zeros(len(lambda_interval))
 coefficient_norm = np.zeros(len(lambda_interval))
@@ -63,11 +60,11 @@ CV_table_results = {
     "baseline": []  # k_of, test_error
 }
 
+# model index: LR -> 1 | ANN -> 2 | baseline -> 0
 all_data = {
-    "LR": [],   # model_index, k_of, k_if, lambda, n_val_errors, Nval, val_error_rate
-    "ANN": [],  # model_index, k_of, k_if, hu,     n_val_errors, Nval, val_error_rate
-    "baseline": []  # model_index, k_of, test_error
-    # model index: LR -> 1 | ANN -> 2 | baseline -> 0
+    "LR": [],       # model_index, k_of, k_if, lambda, n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate
+    "ANN": [],      # model_index, k_of, k_if, hu,     n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate
+    "baseline": []  # model_index, k_of, k_if, 0,      n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate
 }
 for (k_of, (par_index, test_index)) in enumerate(outer_fold):
     print(f"Starting outer fold {k_of + 1} of {K_FOLDS}. {round(k_of / K_FOLDS * 100, 1)}% done.")
@@ -85,12 +82,11 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
     X_par_normalized = (X_par - mean) / st_dev
     X_test_normalized = (X_test - mean) / st_dev
 
-    # Cumpute baseline performance
+    # Compute baseline performance
     frequency_of_most_common = np.max(np.bincount(y_test))
     baseline_accuracy = frequency_of_most_common / len(y_test)
     print(f"Accuracy of baseline: {(baseline_accuracy * 100).__round__(5)}%")
     CV_table_results["baseline"].append(np.array([k_of, 1 - baseline_accuracy]))
-    all_data["baseline"].append(np.array([k_of, 1 - baseline_accuracy]))
 
     inner_fold = cross_validation.split(X_par, y_par)
 
@@ -109,14 +105,24 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
         y_train = y_par[train_index]
         y_val = y_par[val_index]
 
-        best_val_error = 1
-        best_lambda = None
+        frequency_of_most_common = np.max(np.bincount(y_val))
+        baseline_accuracy = frequency_of_most_common / len(y_val)
+        val_errors = len(y_val) - frequency_of_most_common
+        val_error_rate = 1 - baseline_accuracy
+        baseline_accuracy = frequency_of_most_common / len(y_train)
+        train_errors = len(y_train) - frequency_of_most_common
+        train_error_rate = 1 - baseline_accuracy
+        all_result_array = np.array([0, k_of, k_if, 0,
+                                     val_errors, len(y_val), val_error_rate,
+                                     train_errors, len(y_train), train_error_rate])
+        all_data["baseline"].append(all_result_array)
 
+        # Logistic regression
         for reg_lambda in lambda_interval:
             # Increase max_iter and lower tol, as it otherwise wouldn't converge
             logistic_model = lm.LogisticRegression(C=1 / reg_lambda,
                                                    penalty="l2",
-                                                   max_iter=200,
+                                                   max_iter=250 if not TEST else 10,
                                                    n_jobs=8,
                                                    tol=1e-3)
 
@@ -126,16 +132,23 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
             val_errors = np.sum(y_val_est != y_val)
             val_error_rate = val_errors / len(y_val)
 
-            print(f"Model: Regularized logistic regression with lambda = {reg_lambda}")
-            print(f"\tValidation error rate: {(val_error_rate * 100).__round__(3)}%")
-            print(f"\tValidation accuracy:   {((1 - val_error_rate) * 100).__round__(3)}%")
+            y_train_est = logistic_model.predict(X_train_normalized)
+            train_errors = np.sum(y_train_est != y_train)
+            train_error_rate = train_errors / len(y_train)
+
+            print(f"Model: Regularized logistic regression with lambda = {reg_lambda}\n"
+                  f"\tValidation error rate: {(val_error_rate * 100).__round__(3)}%\n"
+                  f"\tValidation accuracy:   {((1 - val_error_rate) * 100).__round__(3)}%")
 
             result_array = np.array([val_error_rate, len(y_val)])  # error_rate, Nval
             LR_results[reg_lambda].append(result_array)
 
-            all_result_array = np.array([1, k_of, k_if, reg_lambda, val_errors, len(y_val), val_error_rate])
+            all_result_array = np.array([1, k_of, k_if, reg_lambda,
+                                         val_errors, len(y_val), val_error_rate,
+                                         train_errors, len(y_train), train_error_rate])
             all_data["LR"].append(all_result_array)
 
+        # ANN
         for n_hidden_units in hidden_units_interval:
             print(f"Training ANN with {n_hidden_units} hiden units in outer fold {k_of + 1} and inner fold {k_if + 1}.")
 
@@ -151,26 +164,31 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
                                          X=torch.tensor(X_train, dtype=torch.float).to(device),
                                          y=torch.tensor(y_train, dtype=torch.long).to(device),
                                          n_replicates=1,  # All replicates were always the same
-                                         max_iter=15000,
-                                         # max_iter=5,
+                                         max_iter=10000 if not TEST else 10,
                                          tolerance=1e-8)
 
             softmax_logits_val = net(torch.tensor(X_val, dtype=torch.float).to(device))
 
             y_val_est = (torch.max(softmax_logits_val, dim=1)[1]).data.cpu().numpy()
-
             val_errors = np.sum(y_val_est != y_val)
-
             val_error_rate = np.sum(y_val_est != y_val) / len(y_val)
 
-            print(f"Model: ANN with {n_hidden_units} hidden units:")
-            print(f"\tValidation error rate:  {(val_error_rate * 100).__round__(3)}%")
-            print(f"\tValidation accuracy:    {((1 - val_error_rate) * 100).__round__(3)}%")
+            print(f"Model: ANN with {n_hidden_units} hidden units:\n"
+                  f"\tValidation error rate:  {(val_error_rate * 100).__round__(3)}%\n"
+                  f"\tValidation accuracy:    {((1 - val_error_rate) * 100).__round__(3)}%")
+
+            softmax_logits_train = net(torch.tensor(X_train, dtype=torch.float).to(device))
+
+            y_train_est = (torch.max(softmax_logits_train, dim=1)[1]).data.cpu().numpy()
+            train_errors = np.sum(y_train_est != y_train)
+            train_error_rate = np.sum(y_train_est != y_train) / len(y_train)
 
             result_array = np.array([val_error_rate, len(y_val)])  # error_rate, Nval
             ANN_results[n_hidden_units].append(result_array)
 
-            all_result_array = np.array([2, k_of, k_if, n_hidden_units, val_errors, len(y_val), val_error_rate])
+            all_result_array = np.array([2, k_of, k_if, n_hidden_units,
+                                         val_errors, len(y_val), val_error_rate,
+                                         train_errors, len(y_train), train_error_rate])
             all_data["ANN"].append(all_result_array)
 
     # Select best LR  based on inner CV
@@ -182,7 +200,7 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
     # Train best models on X_par
     logistic_star = lm.LogisticRegression(C=1 / best_lambda,
                                           penalty="l2",
-                                          max_iter=200,
+                                          max_iter=250 if not TEST else 10,
                                           n_jobs=8,
                                           tol=1e-3)
 
@@ -202,7 +220,7 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
                                  X=torch.tensor(X_par, dtype=torch.float).to(device),
                                  y=torch.tensor(y_par, dtype=torch.long).to(device),
                                  n_replicates=1,
-                                 max_iter=15000,
+                                 max_iter=10000 if not TEST else 10,
                                  tolerance=1e-8)
 
     # Calculate test error by testing newly trained models on X_test
@@ -226,20 +244,18 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
     CV_table_results["LR"].append(np.array([k_of, best_lambda, LR_test_error_rate]))
     CV_table_results["ANN"].append(np.array([k_of, best_hu, ANN_test_error_rate]))
 
-
 np.set_printoptions(suppress=True, linewidth=np.inf)
 
-all_results_array = np.hstack((CV_table_results["LR"], CV_table_results["ANN"], CV_table_results["baseline"]))
+CV_table_results_array = np.hstack((CV_table_results["LR"], CV_table_results["ANN"], CV_table_results["baseline"]))
 # array keys: outer_fold, LR_best_lambda, LR_test_error, ANN_best_hu, ANN_test_error(hu), test_error(baseline)
-all_results_array = np.delete(all_results_array, (3, 6), axis=1)
+CV_table_results_array = np.delete(CV_table_results_array, (3, 6), axis=1)
 
-write_outfile(all_results_array,
+write_outfile(CV_table_results_array,
               name="2-level_CV_table",
-              header="outer_fold, best_lambda(LR), test_error(LR), best_hu (ANN), test_error(hu), test_error(baseline)")
+              header="outer_fold, LR_best_lambda, LR_test_error, ANN_best_hu, ANN_test_error, baseline_test_error")
 
+all_result_array = np.vstack(tuple(all_data["LR"] + all_data["ANN"] + all_data["baseline"]))
 
-
-
-# from toolbox_02450 import mcnemar
-#     alpha = 0.05
-#     [thetahat, CI, p] = mcnemar(true_predictions.reshape(len(true_predictions),1), baseline_predictions.reshape(len(baseline_predictions),1), log_predictions.reshape(len(log_predictions),1), alpha=alpha)
+write_outfile(all_result_array,
+              name="2lCV_all_data",
+              header="model_index, k_of, k_if, complexity, n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate")
