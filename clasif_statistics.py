@@ -87,11 +87,10 @@ for i, model_1 in enumerate(models):
 
 print("Pairwise theta hat:")
 print(pairwise_thetahat)
-print("Pairwise p values:")
-print(pairwise_pval)
 print("Pairwise upper confidence intervals:")
 print(pairwise_upper_CI)
 print("Pairwise lower confidence intervals:")
 print(pairwise_lower_CI)
-
+print("Pairwise p values:")
+print(pairwise_pval)
 
