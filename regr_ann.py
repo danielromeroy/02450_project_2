@@ -39,7 +39,7 @@ if TEST_SUBSET is not None:
     
     
 
-# function for selecting the best model among 
+# selecting the best model for different hu  
 def select_best_model(results: dict):
     gen_errors = {model: 0 for model in results.keys()}
     for model, results_list in results.items():
@@ -53,6 +53,7 @@ def select_best_model(results: dict):
     return best_model
 
 
+# write outfiles
 def write_outfile(array, name: str, header: str):
     out_file = f"{name}_{dt.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv"
     np.savetxt(f"./results/{out_file}", array,
@@ -217,19 +218,17 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
         mse = float(mse)
         # Save results
         CV_table_results["ANN"].append(np.array([k_of, best_hu, mse]))
-        print(CV_table_results)
+
         
 np.set_printoptions(suppress=True, linewidth=np.inf)
 
+# write files 
 CV_table_results_array = CV_table_results["ANN"]
-print(CV_table_results_array)
-
 write_outfile(CV_table_results_array,
               name="2-level_CV_table",
               header="outer_fold, ANN_best_hu, ANN_error")
 
 all_result_array = np.vstack(tuple(all_data["ANN"]))
-
 write_outfile(all_result_array,
               name="2lCV_all_data",
               header="model_index, k_of, k_if, best_hu, ANN_error, Nval, ANN_train_error")
