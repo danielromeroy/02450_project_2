@@ -32,7 +32,7 @@ predictions = {model: None for model in models}
 
 predictions["baseline"] = np.repeat(np.max(y_test), np.size(y_test))
 
-best_lambda = 0.379
+best_lambda = 1.438
 
 logistic_model = lm.LogisticRegression(C=1 / best_lambda,
                                        penalty="l2",
@@ -43,7 +43,7 @@ logistic_model = lm.LogisticRegression(C=1 / best_lambda,
 logistic_model.fit(X_train_normalized, y_train)
 predictions["LR"] = logistic_model.predict(X_test_normalized)
 
-best_hu = 18
+best_hu = 19
 
 ANN_model = lambda: torch.nn.Sequential(torch.nn.Linear(M, best_hu).to(device),
                                         torch.nn.ReLU(),
@@ -76,10 +76,7 @@ for i, model_1 in enumerate(models):
             print(predictions[model_1])
             print(f"{model_2=}")
             print(predictions[model_2])
-            theta_hat, CI, pval = tb.mcnemar(y_test,
-                                             predictions[model_1],
-                                             predictions[model_2],
-                                             alpha=0.05)
+            theta_hat, CI, pval = tb.mcnemar(y_test, predictions[model_1], predictions[model_2], alpha=0.05)
             pairwise_thetahat[i, j] = theta_hat
             pairwise_lower_CI[i, j] = CI[0]
             pairwise_upper_CI[i, j] = CI[1]
@@ -93,4 +90,3 @@ print("Pairwise lower confidence intervals:")
 print(pairwise_lower_CI)
 print("Pairwise p values:")
 print(pairwise_pval)
-
