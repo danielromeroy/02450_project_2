@@ -8,8 +8,7 @@ from data_preparation import *
 
 TEST = False
 TEST_SUBSET = None if not TEST else 200
-# K_FOLDS = 10 if not TEST else 2
-K_FOLDS = 3 if not TEST else 2
+K_FOLDS = 10 if not TEST else 2
 
 if TEST_SUBSET is not None:
     shuffled_indices = np.arange(N)
@@ -50,8 +49,8 @@ train_error_rate = np.zeros(len(lambda_interval))
 test_error_rate = np.zeros(len(lambda_interval))
 coefficient_norm = np.zeros(len(lambda_interval))
 
-# hidden_units_interval = np.hstack((np.arange(1, 11, 3), np.arange(12, 15, 2), np.arange(15, 21)))
-hidden_units_interval = np.arange(22, 31, 2)
+hidden_units_interval = np.hstack((np.arange(1, 11, 3), np.arange(12, 15, 2), np.arange(15, 31)))
+
 
 cross_validation = ms.KFold(K_FOLDS, shuffle=True)
 outer_fold = cross_validation.split(X, y)
@@ -68,7 +67,7 @@ all_data = {
     "ANN": [],      # model_index, k_of, k_if, hu,     n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate
     "baseline": []  # model_index, k_of, k_if, 0,      n_val_errors, Nval, val_error_rate, n_train_errors, Ntrain, train_error_rate
 }
-for (k_of, (par_index, test_index)) in enumerate(outer_fold):
+for k_of, (par_index, test_index) in enumerate(outer_fold):
     print(f"Starting outer fold {k_of + 1} of {K_FOLDS}. {round(k_of / K_FOLDS * 100, 1)}% done.")
 
     X_par = X[par_index, :]
@@ -120,35 +119,35 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
         all_data["baseline"].append(all_result_array)
 
         # Logistic regression
-        # for reg_lambda in lambda_interval:
-        #     # Increase max_iter and lower tol, as it otherwise wouldn't converge
-        #     logistic_model = lm.LogisticRegression(C=1 / reg_lambda,
-        #                                            penalty="l2",
-        #                                            max_iter=250 if not TEST else 10,
-        #                                            n_jobs=8,
-        #                                            tol=1e-3)
-        #
-        #     logistic_model.fit(X_train_normalized, y_train)
-        #
-        #     y_val_est = logistic_model.predict(X_val_normalized)
-        #     val_errors = np.sum(y_val_est != y_val)
-        #     val_error_rate = val_errors / len(y_val)
-        #
-        #     y_train_est = logistic_model.predict(X_train_normalized)
-        #     train_errors = np.sum(y_train_est != y_train)
-        #     train_error_rate = train_errors / len(y_train)
-        #
-        #     print(f"Model: Regularized logistic regression with lambda = {reg_lambda}\n"
-        #           f"\tValidation error rate: {(val_error_rate * 100).__round__(3)}%\n"
-        #           f"\tValidation accuracy:   {((1 - val_error_rate) * 100).__round__(3)}%")
-        #
-        #     result_array = np.array([val_error_rate, len(y_val)])  # error_rate, Nval
-        #     LR_results[reg_lambda].append(result_array)
-        #
-        #     all_result_array = np.array([1, k_of, k_if, reg_lambda,
-        #                                  val_errors, len(y_val), val_error_rate,
-        #                                  train_errors, len(y_train), train_error_rate])
-        #     all_data["LR"].append(all_result_array)
+        for reg_lambda in lambda_interval:
+            # Increase max_iter and lower tol, as it otherwise wouldn't converge
+            logistic_model = lm.LogisticRegression(C=1 / reg_lambda,
+                                                   penalty="l2",
+                                                   max_iter=250 if not TEST else 10,
+                                                   n_jobs=8,
+                                                   tol=1e-3)
+
+            logistic_model.fit(X_train_normalized, y_train)
+
+            y_val_est = logistic_model.predict(X_val_normalized)
+            val_errors = np.sum(y_val_est != y_val)
+            val_error_rate = val_errors / len(y_val)
+
+            y_train_est = logistic_model.predict(X_train_normalized)
+            train_errors = np.sum(y_train_est != y_train)
+            train_error_rate = train_errors / len(y_train)
+
+            print(f"Model: Regularized logistic regression with lambda = {reg_lambda}\n"
+                  f"\tValidation error rate: {(val_error_rate * 100).__round__(3)}%\n"
+                  f"\tValidation accuracy:   {((1 - val_error_rate) * 100).__round__(3)}%")
+
+            result_array = np.array([val_error_rate, len(y_val)])  # error_rate, Nval
+            LR_results[reg_lambda].append(result_array)
+
+            all_result_array = np.array([1, k_of, k_if, reg_lambda,
+                                         val_errors, len(y_val), val_error_rate,
+                                         train_errors, len(y_train), train_error_rate])
+            all_data["LR"].append(all_result_array)
 
         # ANN
         for n_hidden_units in hidden_units_interval:
@@ -194,20 +193,20 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
             all_data["ANN"].append(all_result_array)
 
     # Select best LR  based on inner CV
-    # best_lambda = select_best_model(LR_results)
-    # print(f"Best lambda in fold {k_of + 1}: {best_lambda}")
+    best_lambda = select_best_model(LR_results)
+    print(f"Best lambda in fold {k_of + 1}: {best_lambda}")
     # Select best ANN based on inner CV
     best_hu = select_best_model(ANN_results)
     print(f"Best hidden units in fold {k_of + 1}: {best_hu}")
     # Train best models on X_par
-    # logistic_star = lm.LogisticRegression(C=1 / best_lambda,
-    #                                       penalty="l2",
-    #                                       max_iter=250 if not TEST else 10,
-    #                                       n_jobs=8,
-    #                                       tol=1e-3)
+    logistic_star = lm.LogisticRegression(C=1 / best_lambda,
+                                          penalty="l2",
+                                          max_iter=250 if not TEST else 10,
+                                          n_jobs=8,
+                                          tol=1e-3)
 
     print(f"Training logistic regression on Dpar (outer fold {k_of + 1} of {K_FOLDS}).")
-    # logistic_star.fit(X_par_normalized, y_par)
+    logistic_star.fit(X_par_normalized, y_par)
 
     ANN_star = lambda: torch.nn.Sequential(torch.nn.Linear(M, best_hu).to(device),
                                            torch.nn.ReLU(),
@@ -227,12 +226,12 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
 
     # Calculate test error by testing newly trained models on X_test
 
-    # LR_y_test_est = logistic_star.predict(X_test_normalized)
-    # LR_test_errors = np.sum(LR_y_test_est != y_test)
-    # LR_test_error_rate = LR_test_errors / len(y_test)
+    LR_y_test_est = logistic_star.predict(X_test_normalized)
+    LR_test_errors = np.sum(LR_y_test_est != y_test)
+    LR_test_error_rate = LR_test_errors / len(y_test)
 
-    # print(f"Logistic regression test error rate (outer fold {k_of} of {K_FOLDS}):\n"
-    #       f"\t{LR_test_error_rate}")
+    print(f"Logistic regression test error rate (outer fold {k_of} of {K_FOLDS}):\n"
+          f"\t{LR_test_error_rate}")
 
     ANN_softmax_logits_test = net(torch.tensor(X_test, dtype=torch.float).to(device))
     ANN_y_test_est = (torch.max(ANN_softmax_logits_test, dim=1)[1]).data.cpu().numpy()
@@ -243,7 +242,7 @@ for (k_of, (par_index, test_index)) in enumerate(outer_fold):
           f"\t{ANN_test_error_rate}")
 
     # Save results
-    # CV_table_results["LR"].append(np.array([k_of, best_lambda, LR_test_error_rate]))
+    CV_table_results["LR"].append(np.array([k_of, best_lambda, LR_test_error_rate]))
     CV_table_results["ANN"].append(np.array([k_of, best_hu, ANN_test_error_rate]))
 
 np.set_printoptions(suppress=True, linewidth=np.inf)
@@ -256,8 +255,7 @@ write_outfile(CV_table_results_array,
               name="2-level_CV_table",
               header="outer_fold, LR_best_lambda, LR_test_error, ANN_best_hu, ANN_test_error, baseline_test_error")
 
-# all_result_array = np.vstack(tuple(all_data["LR"] + all_data["ANN"] + all_data["baseline"]))
-all_result_array = np.vstack(tuple(all_data["ANN"]))
+all_result_array = np.vstack(tuple(all_data["LR"] + all_data["ANN"] + all_data["baseline"]))
 
 write_outfile(all_result_array,
               name="2lCV_all_data",
